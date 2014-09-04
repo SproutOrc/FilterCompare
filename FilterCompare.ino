@@ -9,12 +9,13 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-double KP = 70;
-double KI = 10;
-double KD = 0;
+double KP = 40;
+double KI = 38;
+double KD = 1;
+double SET_POINT = 9;
 #define SAMPLE_TIME 20
-#define SPEED 120.0
-#define SET_POINT 8
+#define SPEED 110.0
+
 
 uint8_t ADR = 0x68;
 
@@ -125,12 +126,27 @@ void loop() {
 }
 void printout()
 {
-    //if (Serial1.)
-    Serial1.print(angleAx);Serial1.print(',');
-    Serial1.print(angle);Serial1.print(',');
-    Serial1.print(angle2);Serial1.print(',');
-    // Serial.print(gx/131.00);Serial.print(',');
-    Serial1.println(angle1);//Serial.print(',');
+    if (Serial1.available() >= 4) {
+        KP = (double)Serial1.read();
+        KI = (double)Serial1.read();
+        KD = (double)Serial1.read();
+        Setpoint = (double)Serial1.read();
+
+        MotorPID.SetTunings(KP, KI, KD);
+        Serial1.print("KP = ");
+        Serial1.print(KP);
+        Serial1.print("\tKI = ");
+        Serial1.print(KI);
+        Serial1.print("\tKD = ");
+        Serial1.print(KD);
+        Serial1.print("\tSET_POINT = ");
+        Serial1.println(Setpoint);
+    }
+    // Serial1.print(angleAx);Serial1.print(',');
+    // Serial1.print(angle);Serial1.print(',');
+    // Serial1.print(angle2);Serial1.print(',');
+    // // Serial.print(gx/131.00);Serial.print(',');
+    // Serial1.println(angle1);//Serial.print(',');
 
 //   Serial.println(Output);
 }
