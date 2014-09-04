@@ -9,10 +9,12 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-#define KP 5
-#define KI 0
-#define KD 0
+double KP = 70;
+double KI = 10;
+double KD = 0;
 #define SAMPLE_TIME 20
+#define SPEED 120.0
+#define SET_POINT 8
 
 uint8_t ADR = 0x68;
 
@@ -110,11 +112,11 @@ void setup() {
     int tickEvent1=t.every(timeChange, getangle);//本语句执行以后timeChange毫秒执行回调函数getangle
 
     int tickEvent2=t.every(50, printout) ;//本语句执行以后50毫秒执行回调函数printout，串口输出
-    MotorPID.SetOutputLimits(-100.0, 100.0);
+    MotorPID.SetOutputLimits(-SPEED, SPEED);
     MotorPID.SetMode(AUTOMATIC);
     MotorPID.SetSampleTime(SAMPLE_TIME);
     MotorPID.SetTunings(KP, KI, KD);
-    Setpoint = 6;
+    Setpoint = SET_POINT;
 }   
 
 void loop() {
@@ -123,6 +125,7 @@ void loop() {
 }
 void printout()
 {
+    //if (Serial1.)
     Serial1.print(angleAx);Serial1.print(',');
     Serial1.print(angle);Serial1.print(',');
     Serial1.print(angle2);Serial1.print(',');
@@ -148,6 +151,11 @@ void getangle()
     angleAx=atan2(ay,az)*180/PI;//计算与x轴夹角
     gyroGy=gx/131.00;//计算角速度
     Kalman_Filter(angleAx,gyroGy);   //卡尔曼滤波
+
+    if (abs(angle) > 40) {
+        motion.stop();
+        return;
+    }
     Input = angle;
     MotorPID.Compute();
 
