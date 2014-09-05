@@ -12,7 +12,7 @@
 #define ACCEL 0x3B
 #define GYRO  0x43
 #define SAMPLE_TIME 10
-#define SPEED 210.0
+#define SPEED 250.0
 
 uint8_t ADR = 0x68;
 
@@ -46,7 +46,7 @@ double kd = 0.9;
 
 double KP = 40;
 double KI = 38;
-double KD = 0.9;
+double KD = 0.8;
 
 /////////////////////////////////////////////////
 
@@ -109,7 +109,7 @@ void printout()
     if (Serial1.available() >= 4) {
         KP = (double)Serial1.read();
         KI = (double)Serial1.read();
-        KD = (double)Serial1.read();
+        double a = (double)Serial1.read();
         Setpoint = (double)Serial1.read();
 
         SetTunings(KP, KI, KD);
@@ -119,7 +119,7 @@ void printout()
         Serial1.print(KI);
         Serial1.print("\tKD = ");
         Serial1.print(KD);
-        Serial1.print("\tSET_POINT = ");
+        Serial1.print("\tSetpoint  = ");
         Serial1.println(Setpoint);
     }
     // Serial1.print(angleAx);Serial1.print(',');
@@ -196,44 +196,4 @@ void Kalman_Filter(double angle_m,double gyro_m)
     angle += K_0 * angle_err; //最优角度
     q_bias += K_1 * angle_err;
     angle_dot = gyro_m-q_bias;//最优角速度
-}
-
-void Compute()
-{
-   unsigned long now = millis();
-   int timeChange = (now - lastTime);
-   if(timeChange>=SampleTime)
-   {
-      /*Compute all the working error variables*/
-      double error = Setpoint - Input;
-      errSum += error;
-      double dErr = (error - lastErr);
- 
-      /*Compute PID Output*/
-      Output = kp * error + ki * errSum + kd * dErr;
- 
-      /*Remember some variables for next time*/
-      lastErr = error;
-      lastTime = now;
-   }
-}
- 
-void SetTunings(double Kp, double Ki, double Kd)
-{
-  double SampleTimeInSec = ((double)SampleTime)/1000;
-   kp = Kp;
-   ki = Ki * SampleTimeInSec;
-   kd = Kd / SampleTimeInSec;
-}
- 
-void SetSampleTime(int NewSampleTime)
-{
-   if (NewSampleTime > 0)
-   {
-      double ratio  = (double)NewSampleTime
-                      / (double)SampleTime;
-      ki *= ratio;
-      kd /= ratio;
-      SampleTime = (unsigned long)NewSampleTime;
-   }
 }
