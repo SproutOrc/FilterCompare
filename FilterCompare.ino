@@ -1,7 +1,9 @@
 #include "I2Cdev.h"
-#include <PID_v1.h>
 #include <SelfHardwareMake.h>
-#include "Timer.h"//时间操作系统头文件  本程序用作timeChange时间采集并处理一次数据
+//时间操作系统头文件  
+//本程序用作timeChange时间采集并处理一次数据
+#include "Timer.h"
+
 
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   #include "Wire.h"
@@ -11,10 +13,10 @@
 #define GYRO  0x43
 double KP = 40;
 double KI = 38;
-double KD = 1;
+double KD = 0.9;
 double SET_POINT = 9;
 #define SAMPLE_TIME 20
-#define SPEED 110.0
+#define SPEED 210.0
 
 
 uint8_t ADR = 0x68;
