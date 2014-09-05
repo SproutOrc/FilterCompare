@@ -11,7 +11,7 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-#define SAMPLE_TIME 20
+#define SAMPLE_TIME 10
 #define SPEED 210.0
 
 uint8_t ADR = 0x68;
@@ -47,7 +47,6 @@ double kd = 0.9;
 double KP = 40;
 double KI = 38;
 double KD = 0.9;
-double SET_POINT = 9;
 
 /////////////////////////////////////////////////
 
@@ -98,6 +97,7 @@ void setup() {
 
     SetSampleTime(SAMPLE_TIME);
     SetTunings(KP, KI, KD);
+    Setpoint = 8;
 }   
 
 void loop() {
@@ -155,6 +155,11 @@ void getangle()
     Input = angle;
     Compute();
 
+    if (Output > SPEED) {
+        Output = SPEED;
+    } else if (Output < -SPEED) {
+        Output = -SPEED;
+    }
 
     if (Output > 0) {
         motion.back((int)Output, (int)Output);
