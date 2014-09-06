@@ -17,10 +17,10 @@ double KI = 0.6;
 double KD = 0.1;
 #define SET_POINT 8.6;
 #define SAMPLE_TIME 10
-#define SPEED 255.0
-#define OFFSET_LEFT 0
-#define OFFSET_RIGHT 0
-#define SET_ERROR 0
+#define SPEED 110.0
+#define OFFSET_LEFT 50
+#define OFFSET_RIGHT 60
+#define SET_ERROR 1.0
 
 
 uint8_t ADR = 0x68;
