@@ -1,4 +1,5 @@
 #include "I2Cdev.h"
+#include "PID_v1.h"
 #include <SelfHardwareMake.h>
 //时间操作系统头文件  
 //本程序用作timeChange时间采集并处理一次数据
@@ -11,12 +12,15 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-double KP = 40;
-double KI = 38;
-double KD = 0.9;
-double SET_POINT = 9;
-#define SAMPLE_TIME 20
-#define SPEED 210.0
+double KP = 13.0;
+double KI = 0.6;
+double KD = 0.1;
+#define SET_POINT 8.6;
+#define SAMPLE_TIME 10
+#define SPEED 255.0
+#define OFFSET_LEFT 0
+#define OFFSET_RIGHT 0
+#define SET_ERROR 0
 
 
 uint8_t ADR = 0x68;
@@ -126,33 +130,36 @@ void loop() {
 
     t.update();//时间操作系统运行
 }
+
+double soso;
 void printout()
 {
     if (Serial1.available() >= 4) {
-        KP = (double)Serial1.read();
-        KI = (double)Serial1.read();
-        KD = (double)Serial1.read();
+        KP = (double)Serial1.read() / 1.0;
+        KI = (double)Serial1.read() / 10.0;
+        KD = (double)Serial1.read() / 10.0;
         Setpoint = (double)Serial1.read();
 
         MotorPID.SetTunings(KP, KI, KD);
-        Serial1.print("KP = ");
-        Serial1.print(KP);
-        Serial1.print("\tKI = ");
-        Serial1.print(KI);
-        Serial1.print("\tKD = ");
-        Serial1.print(KD);
-        Serial1.print("\tSET_POINT = ");
-        Serial1.println(Setpoint);
+        // Serial1.print("KP = ");
+        // Serial1.print(KP);
+        // Serial1.print("\tKI = ");
+        // Serial1.print(KI);
+        // Serial1.print("\tKD = ");
+        // Serial1.print(KD);
+        // Serial1.print("\tSET_POINT = ");
+        // Serial1.println(Setpoint);
     }
-    // Serial1.print(angleAx);Serial1.print(',');
-    // Serial1.print(angle);Serial1.print(',');
-    // Serial1.print(angle2);Serial1.print(',');
-    // // Serial.print(gx/131.00);Serial.print(',');
-    // Serial1.println(angle1);//Serial.print(',');
+    Serial1.print(Output / 4);Serial1.print(',');
+    Serial1.print(angle);Serial1.print(',');
+    Serial1.print(angleAx);Serial1.print(',');
+    // Serial.print(gx/131.00);Serial.print(',');
+    Serial1.println(0.00);//Serial.print(',');
 
 //   Serial.println(Output);
 }
 
+int flag = 0;
 
 void getangle() 
 {
@@ -174,14 +181,26 @@ void getangle()
         motion.stop();
         return;
     }
+
+    if (angle <= Setpoint + SET_ERROR 
+     && angle >= Setpoint - SET_ERROR) {
+        flag = 1;
+        MotorPID.SetMode(MANUAL);
+        Output = 0;
+        motion.stop();
+        return;
+    } else if (flag == 1) {
+        flag = 0;
+        MotorPID.SetMode(AUTOMATIC);
+    }
+
     Input = angle;
     MotorPID.Compute();
 
-
     if (Output > 0) {
-        motion.back((int)Output, (int)Output);
+        motion.back(OFFSET_LEFT + (int)Output, OFFSET_RIGHT + (int)Output);
     } else if (Output < 0){
-        motion.front((int)-Output, (int)-Output);
+        motion.front(OFFSET_LEFT - (int)Output, OFFSET_RIGHT - (int)Output);
     } else {
         motion.stop();
     }
