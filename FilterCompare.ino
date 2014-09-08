@@ -12,16 +12,14 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-double KP = 13.0;
-double KI = 0.6;
-double KD = 0.1;
-#define SET_POINT 8.6;
+double KP = 13;
+double KI = 0;
+double KD = 0;
+#define SET_POINT 0
 #define SAMPLE_TIME 10
-#define SPEED 110.0
-#define OFFSET_LEFT 50
-#define OFFSET_RIGHT 60
-#define SET_ERROR 1.0
-
+#define SPEED 200.0
+#define OFFSET_LEFT 35
+#define OFFSET_RIGHT 30
 
 uint8_t ADR = 0x68;
 
@@ -64,7 +62,7 @@ float angle_0, angle_dot_0;//采集来的角度和角速度
 float P[2][2] = {{ 1, 0 },
               { 0, 1 }};
 float Pdot[4] ={ 0,0,0,0};
-float Q_angle=0.001, Q_gyro=0.003; //角度数据置信度,角速度数据置信度
+float Q_angle=0.001, Q_gyro=0.005; //角度数据置信度,角速度数据置信度
 float R_angle=0.5 ,C_0 = 1; 
 float q_bias, angle_err, PCt_0, PCt_1, E, K_0, K_1, t_0, t_1;
 
@@ -134,11 +132,14 @@ void loop() {
 double soso;
 void printout()
 {
-    if (Serial1.available() >= 4) {
-        KP = (double)Serial1.read() / 1.0;
-        KI = (double)Serial1.read() / 10.0;
-        KD = (double)Serial1.read() / 10.0;
-        Setpoint = (double)Serial1.read();
+    if (Serial1.available() >= 3) {
+        int a = 0;
+        a = Serial1.read();
+        KP = (double) ((a >> 4 & 0x0f) * 10 + (a & 0x0f));
+        a = Serial1.read();
+        KI = (double) ((a >> 4 & 0x0f) * 10 + (a & 0x0f));
+        a = Serial1.read();
+        KD = (double) ((a >> 4 & 0x0f) * 10 + (a & 0x0f));
 
         MotorPID.SetTunings(KP, KI, KD);
         // Serial1.print("KP = ");
@@ -152,7 +153,7 @@ void printout()
     }
     Serial1.print(Output / 4);Serial1.print(',');
     Serial1.print(angle);Serial1.print(',');
-    Serial1.print(angleAx);Serial1.print(',');
+    Serial1.print(0);Serial1.print(',');
     // Serial.print(gx/131.00);Serial.print(',');
     Serial1.println(0.00);//Serial.print(',');
 
@@ -173,34 +174,39 @@ void getangle()
     gy = (((int16_t)buffer[2]) << 8) | buffer[2];
     gz = (((int16_t)buffer[4]) << 8) | buffer[5]; 
 
-    angleAx=atan2(ay,az)*180/PI;//计算与x轴夹角
-    gyroGy=gx/131.00;//计算角速度
+    angleAx=atan2(ax,-az)*180/PI;//计算与x轴夹角
+    gyroGy=gy/131.00;//计算角速度
     Kalman_Filter(angleAx,gyroGy);   //卡尔曼滤波
 
     if (abs(angle) > 40) {
         motion.stop();
+        MotorPID.SetMode(MANUAL);
+        Output = 0;
+        flag = 1;
         return;
     }
 
-    if (angle <= Setpoint + SET_ERROR 
-     && angle >= Setpoint - SET_ERROR) {
-        flag = 1;
-        MotorPID.SetMode(MANUAL);
-        Output = 0;
-        motion.stop();
-        return;
-    } else if (flag == 1) {
+    // if (angle <= Setpoint + SET_ERROR 
+    //  && angle >= Setpoint - SET_ERROR) {
+    //     flag = 1;
+    //     MotorPID.SetMode(MANUAL);
+    //     Output = 0;
+    //     motion.stop();
+    //     return;
+    // } else 
+    if (flag == 1) {
         flag = 0;
         MotorPID.SetMode(AUTOMATIC);
     }
 
     Input = angle;
+
     MotorPID.Compute();
 
     if (Output > 0) {
-        motion.back(OFFSET_LEFT + (int)Output, OFFSET_RIGHT + (int)Output);
+        motion.front(OFFSET_LEFT + (int)Output, OFFSET_RIGHT + (int)Output);
     } else if (Output < 0){
-        motion.front(OFFSET_LEFT - (int)Output, OFFSET_RIGHT - (int)Output);
+        motion.back(OFFSET_LEFT - (int)Output, OFFSET_RIGHT - (int)Output);
     } else {
         motion.stop();
     }
