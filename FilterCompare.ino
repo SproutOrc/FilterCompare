@@ -12,8 +12,8 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-double KP = 13;
-double KI = 0;
+double KP = 50;
+double KI = 2;
 double KD = 0;
 #define SET_POINT 0
 #define SAMPLE_TIME 10
