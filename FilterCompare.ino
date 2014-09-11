@@ -36,41 +36,24 @@ PID MotorPID(&Input, &Output, &Setpoint,KP,KI,KD, DIRECT);
 SelfHardwareMake motion;
 
 KalmanFilter kf(SAMPLE_TIME * 0.001);
-
-Timer t;//时间类
-
+//时间类
+Timer t;
 
 
 //滤波法采样时间间隔毫秒
 float timeChange=SAMPLE_TIME;
-//注意：dt的取值为滤波器采样时间
-float dt=timeChange*0.001;
-// 陀螺仪
 // //计算后的角度（与x轴夹角）和角速度
 float angleAx,gyroGy;
 //陀螺仪原始数据 3个加速度+3个角速度
 int16_t ax, ay, az, gx, gy, gz;
 
+float angle;
 
-//卡尔曼滤波参数与函数
-//角度和角速度
-float angle, angle_dot;
-//采集来的角度和角速度
-float angle_0, angle_dot_0;
-//float dt=20*0.001;//注意：dt的取值为kalman滤波器采样时间
-//一下为运算中间变量
-float P[2][2] = {{ 1, 0 },
-              { 0, 1 }};
-float Pdot[4] ={ 0,0,0,0};
-//角度数据置信度,角速度数据置信度
-float Q_angle=0.001, Q_gyro=0.005; 
-float R_angle=0.5 ,C_0 = 1; 
-float q_bias, angle_err, PCt_0, PCt_1, E, K_0, K_1, t_0, t_1;
 
 void setup() {
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
     Wire.begin();
-    TWBR = 2;    // 24: 400kHz I2C clock (200kHz if CPU is 8MHz) //2014.01.10変えてみた．
+    TWBR = 2;    // 24: 400kHz I2C clock (200kHz if CPU is 8MHz)
     //TWBR = 12; // 12; 400kHz I2C clock (400kHz if CPU is 16MHz)
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
     Fastwire::setup(400, true);
@@ -109,9 +92,9 @@ void loop() {
 void printout()
 {
     Serial1.print(Setpoint);Serial1.print(',');
-    Serial1.print(angle);Serial1.print(',');
+    Serial1.print(angleAx);Serial1.print(',');
     Serial1.print(kf.getAngle());Serial1.print(',');
-    Serial1.println(Setpoint);
+    Serial1.println(40);
 }
 
 int flag = 0;
@@ -128,15 +111,13 @@ void getangle()
     gy = (((int16_t)buffer[2]) << 8) | buffer[2];
     gz = (((int16_t)buffer[4]) << 8) | buffer[5]; 
 
-    angleAx=atan2(ax,-az)*180/PI;//计算与x轴夹角
-    gyroGy=gy/131.00;//计算角速度
+    angleAx=atan2(-ay,-az)*180/PI;//计算与x轴夹角
+    gyroGy=gx/131.00;//计算角速度
 
-    //Kalman_Filter(angleAx,gyroGy);
     kf.state_update(gyroGy);
     kf.kalman_update(angleAx);
-    
-
     angle = kf.getAngle();
+
     if (abs(angle) > 40) {
         flag = 1;
         MotorPID.SetMode(MANUAL);
@@ -146,14 +127,15 @@ void getangle()
         return;
     }
 
-    if (angle <= Setpoint + SET_ERROR 
-     && angle >= Setpoint - SET_ERROR) {
-        flag = 1;
-        MotorPID.SetMode(MANUAL);
-        Output = 0;
-        motion.stop();
-        return;
-    } else if (flag == 1) {
+    // if (angle <= Setpoint + SET_ERROR 
+    //  && angle >= Setpoint - SET_ERROR) {
+    //     flag = 1;
+    //     MotorPID.SetMode(MANUAL);
+    //     Output = 0;
+    //     motion.stop();
+    //     return;
+    // } else 
+    if (flag == 1) {
         flag = 0;
         MotorPID.SetMode(AUTOMATIC);
     }
@@ -167,32 +149,4 @@ void getangle()
     } else{
         motion.back(OFFSET_LEFT - (int)Output, OFFSET_RIGHT - (int)Output);
     } 
-}
-
-void Kalman_Filter(double angle_m,double gyro_m)
-{
-    angle+=(gyro_m-q_bias) * dt;
-    angle_err = angle_m - angle;
-    Pdot[0]=Q_angle - P[0][1] - P[1][0];
-    Pdot[1]=- P[1][1];
-    Pdot[2]=- P[1][1];
-    Pdot[3]=Q_gyro;
-    P[0][0] += Pdot[0] * dt;
-    P[0][1] += Pdot[1] * dt;
-    P[1][0] += Pdot[2] * dt;
-    P[1][1] += Pdot[3] * dt;
-    PCt_0 = C_0 * P[0][0];
-    PCt_1 = C_0 * P[1][0];
-    E = R_angle + C_0 * PCt_0;
-    K_0 = PCt_0 / E;
-    K_1 = PCt_1 / E;
-    t_0 = PCt_0;
-    t_1 = C_0 * P[0][1];
-    P[0][0] -= K_0 * t_0;
-    P[0][1] -= K_0 * t_1;
-    P[1][0] -= K_1 * t_0;
-    P[1][1] -= K_1 * t_1;
-    angle += K_0 * angle_err; //最优角度
-    q_bias += K_1 * angle_err;
-    angle_dot = gyro_m-q_bias;//最优角速度
 }
