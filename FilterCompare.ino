@@ -1,5 +1,6 @@
 #include "I2Cdev.h"
 #include "PID_v1.h"
+#include "KalmanFilter.h"
 #include <SelfHardwareMake.h>
 //时间操作系统头文件  
 //本程序用作timeChange时间采集并处理一次数据
@@ -12,18 +13,17 @@
 
 #define ACCEL 0x3B
 #define GYRO  0x43
-double KP = 50;
-double KI = 0;
-double KD = 0;
-#define SET_POINT 0
+double KP = 50.0;
+double KI = 10;
+double KD = 0.0;
+#define SET_POINT 2.4
 #define SAMPLE_TIME 10
 #define SPEED 150.0
-#define OFFSET_LEFT 0
-#define OFFSET_RIGHT 10
+#define OFFSET_LEFT 10
+#define OFFSET_RIGHT 20
+#define SET_ERROR 0.5
 
 uint8_t ADR = 0x68;
-
-uint8_t MAG_ADR = 0x0c;
 
 uint8_t buffer[6]; 
 
@@ -35,58 +35,48 @@ PID MotorPID(&Input, &Output, &Setpoint,KP,KI,KD, DIRECT);
 
 SelfHardwareMake motion;
 
+KalmanFilter kf(SAMPLE_TIME * 0.001);
+
 Timer t;//时间类
 
-float timeChange=SAMPLE_TIME;//滤波法采样时间间隔毫秒
-float dt=timeChange*0.001;//注意：dt的取值为滤波器采样时间
+
+
+//滤波法采样时间间隔毫秒
+float timeChange=SAMPLE_TIME;
+//注意：dt的取值为滤波器采样时间
+float dt=timeChange*0.001;
 // 陀螺仪
-float angleAx,gyroGy;//计算后的角度（与x轴夹角）和角速度
+// //计算后的角度（与x轴夹角）和角速度
+float angleAx,gyroGy;
+//陀螺仪原始数据 3个加速度+3个角速度
+int16_t ax, ay, az, gx, gy, gz;
 
-int16_t ax, ay, az, gx, gy, gz;//陀螺仪原始数据 3个加速度+3个角速度
-
-//一阶滤波
-float K1 =0.05; // 对加速度计取值的权重
-//float dt=20*0.001;//注意：dt的取值为滤波器采样时间
-float angle1;//一阶滤波角度输出
-//二阶滤波
-float K2 =0.2; // 对加速度计取值的权重
-float x1,x2,y1;//运算中间变量
-//float dt=20*0.001;//注意：dt的取值为滤波器采样时间
-float angle2;//er阶滤波角度输出
 
 //卡尔曼滤波参数与函数
-float angle, angle_dot;//角度和角速度
-float angle_0, angle_dot_0;//采集来的角度和角速度
+//角度和角速度
+float angle, angle_dot;
+//采集来的角度和角速度
+float angle_0, angle_dot_0;
 //float dt=20*0.001;//注意：dt的取值为kalman滤波器采样时间
 //一下为运算中间变量
 float P[2][2] = {{ 1, 0 },
               { 0, 1 }};
 float Pdot[4] ={ 0,0,0,0};
-float Q_angle=0.001, Q_gyro=0.005; //角度数据置信度,角速度数据置信度
+//角度数据置信度,角速度数据置信度
+float Q_angle=0.001, Q_gyro=0.005; 
 float R_angle=0.5 ,C_0 = 1; 
 float q_bias, angle_err, PCt_0, PCt_1, E, K_0, K_1, t_0, t_1;
 
 void setup() {
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
     Wire.begin();
-    TWBR = 2; // 24: 400kHz I2C clock (200kHz if CPU is 8MHz) //2014.01.10変えてみた．
-    //TWBR = 12; // 12;400kHz I2C clock (400kHz if CPU is 16MHz)
+    TWBR = 2;    // 24: 400kHz I2C clock (200kHz if CPU is 8MHz) //2014.01.10変えてみた．
+    //TWBR = 12; // 12; 400kHz I2C clock (400kHz if CPU is 16MHz)
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
     Fastwire::setup(400, true);
     #endif
 
     Serial1.begin(57600);
-
-    // Serial.println("Initializing I2C devices...");
-
-    uint8_t who_am_i;
-    I2Cdev::readByte(ADR, 0x75, &who_am_i);
-    // if(who_am_i == 0x71){
-    //   Serial.println("Successfully connected to MPU9250");
-    // }
-    // else{
-    //   Serial.println("Failed to Connect to MPU9250");
-    // }
 
     I2Cdev::writeByte(ADR, 0x1b, 0x00);
     delay(1);
@@ -99,24 +89,11 @@ void setup() {
 
     I2Cdev::writeByte(ADR, 0x37, 0x02);
 
-    I2Cdev::readByte(MAG_ADR,0x00,&who_am_i);
-    if(who_am_i == 0x48){
-    // Serial.println("Successfully connected to COMPASS(AK8963)");
-    }
-    else{
-    // Serial.println("Failed to Connect to COMPASS(AK8963)");
-    }
-    delay(5);
+    //本语句执行以后timeChange毫秒执行回调函数getangle
+    int tickEvent1=t.every(timeChange, getangle);
+    //本语句执行以后50毫秒执行回调函数printout，串口输出
+    int tickEvent2=t.every(50, printout);
 
-    I2Cdev::writeByte(MAG_ADR, 0x0a, 0x00);
-    delay(10);
-
-    I2Cdev::writeByte(MAG_ADR, 0x0a, 0x16);
-    delay(10); 
-
-    int tickEvent1=t.every(timeChange, getangle);//本语句执行以后timeChange毫秒执行回调函数getangle
-
-    int tickEvent2=t.every(50, printout) ;//本语句执行以后50毫秒执行回调函数printout，串口输出
     MotorPID.SetOutputLimits(-SPEED, SPEED);
     MotorPID.SetMode(AUTOMATIC);
     MotorPID.SetSampleTime(SAMPLE_TIME);
@@ -125,39 +102,16 @@ void setup() {
 }   
 
 void loop() {
-
-    t.update();//时间操作系统运行
+    //时间操作系统运行
+    t.update();
 }
 
-double soso;
 void printout()
 {
-    if (Serial1.available() >= 3) {
-        int a = 0;
-        a = Serial1.read();
-        KP = (double) ((a >> 4 & 0x0f) * 10 + (a & 0x0f));
-        a = Serial1.read();
-        KI = (double) ((a >> 4 & 0x0f) * 10 + (a & 0x0f));
-        a = Serial1.read();
-        KD = (double) ((a >> 4 & 0x0f) * 10 + (a & 0x0f));
-
-        MotorPID.SetTunings(KP, KI, KD);
-        // Serial1.print("KP = ");
-        // Serial1.print(KP);
-        // Serial1.print("\tKI = ");
-        // Serial1.print(KI);
-        // Serial1.print("\tKD = ");
-        // Serial1.print(KD);
-        // Serial1.print("\tSET_POINT = ");
-        // Serial1.println(Setpoint);
-    }
-    Serial1.print(Output / 4);Serial1.print(',');
+    Serial1.print(Setpoint);Serial1.print(',');
     Serial1.print(angle);Serial1.print(',');
-    Serial1.print(0);Serial1.print(',');
-    // Serial.print(gx/131.00);Serial.print(',');
-    Serial1.println(0.00);//Serial.print(',');
-
-//   Serial.println(Output);
+    Serial1.print(kf.getAngle());Serial1.print(',');
+    Serial1.println(Setpoint);
 }
 
 int flag = 0;
@@ -176,25 +130,30 @@ void getangle()
 
     angleAx=atan2(ax,-az)*180/PI;//计算与x轴夹角
     gyroGy=gy/131.00;//计算角速度
-    Kalman_Filter(angleAx,gyroGy);   //卡尔曼滤波
 
+    //Kalman_Filter(angleAx,gyroGy);
+    kf.state_update(gyroGy);
+    kf.kalman_update(angleAx);
+    
+
+    angle = kf.getAngle();
     if (abs(angle) > 40) {
-        motion.stop();
+        flag = 1;
         MotorPID.SetMode(MANUAL);
         Output = 0;
-        flag = 1;
+        motion.stop();
+        
         return;
     }
 
-    // if (angle <= Setpoint + SET_ERROR 
-    //  && angle >= Setpoint - SET_ERROR) {
-    //     flag = 1;
-    //     MotorPID.SetMode(MANUAL);
-    //     Output = 0;
-    //     motion.stop();
-    //     return;
-    // } else 
-    if (flag == 1) {
+    if (angle <= Setpoint + SET_ERROR 
+     && angle >= Setpoint - SET_ERROR) {
+        flag = 1;
+        MotorPID.SetMode(MANUAL);
+        Output = 0;
+        motion.stop();
+        return;
+    } else if (flag == 1) {
         flag = 0;
         MotorPID.SetMode(AUTOMATIC);
     }
@@ -205,11 +164,9 @@ void getangle()
 
     if (Output > 0) {
         motion.front(OFFSET_LEFT + (int)Output, OFFSET_RIGHT + (int)Output);
-    } else if (Output < 0){
+    } else{
         motion.back(OFFSET_LEFT - (int)Output, OFFSET_RIGHT - (int)Output);
-    } else {
-        motion.stop();
-    }
+    } 
 }
 
 void Kalman_Filter(double angle_m,double gyro_m)
