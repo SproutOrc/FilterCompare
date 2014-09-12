@@ -14,13 +14,14 @@
 #define ACCEL 0x3B
 #define GYRO  0x43
 double KP = 50.0;
-double KI = 10;
-double KD = 0.0;
-#define SET_POINT 2.4
+double KI = 20.0;
+double KD = 0.5
+;
+#define SET_POINT -1.5
 #define SAMPLE_TIME 10
-#define SPEED 150.0
-#define OFFSET_LEFT 10
-#define OFFSET_RIGHT 20
+#define SPEED 240.0
+#define OFFSET_LEFT 0
+#define OFFSET_RIGHT 0
 #define SET_ERROR 0.5
 
 uint8_t ADR = 0x68;
