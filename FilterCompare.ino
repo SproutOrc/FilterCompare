@@ -37,6 +37,7 @@ PID MotorPID(&Input, &Output, &Setpoint,KP,KI,KD, DIRECT);
 SelfHardwareMake motion;
 
 KalmanFilter kf(SAMPLE_TIME * 0.001);
+KalmanFilter turnKf(50 * 0.001);
 //时间类
 Timer t;
 
@@ -111,9 +112,10 @@ void getangle()
     gx = (((int16_t)buffer[0]) << 8) | buffer[1];
     gy = (((int16_t)buffer[2]) << 8) | buffer[2];
     gz = (((int16_t)buffer[4]) << 8) | buffer[5]; 
-
-    angleAx=atan2(-ay,-az)*180/PI;//计算与x轴夹角
-    gyroGy=gx/131.00;//计算角速度
+    // 计算与x轴夹角
+    angleAx = atan2(-ay, -az) * 180 / PI;
+    // 计算角速度
+    gyroGy = gx / 131.00;
 
     kf.state_update(gyroGy);
     kf.kalman_update(angleAx);
