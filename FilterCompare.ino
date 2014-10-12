@@ -6,6 +6,8 @@
 
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   #include "Wire.h"
+#include "Bluetooth.h"
+
 #endif
 
 #define ACCEL 0x3B
@@ -13,8 +15,9 @@
 
 #define SAMPLE_TIME 10
 #define SPEED 240.0
-#define OFFSET_LEFT 0
+#define ANGLE_OFFSET -1.5
 #define OFFSET_RIGHT 0
+#define OFFSET_LEFT 0
 
 uint8_t ADR = 0x68;
 
@@ -52,10 +55,10 @@ char  turn_need = 0;
 char  speed_need = 0;
 
 
-static float Kp  = 40.0;       //PID参数
-static float Kd  = 0.5;        //PID参数
-static float Kpn = 0.07;      //PID参数
-static float Ksp = 1.5;        //PID参数
+static float Kp  = 45.0;       //PID参数
+static float Kd  = 0.35;        //PID参数
+static float Kpn = 0.09;      //PID参数
+static float Ksp = 1.1;        //PID参数
 
 
 //滤波法采样时间间隔毫秒
@@ -74,8 +77,7 @@ void setup() {
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
     Fastwire::setup(400, true);
     #endif
-
-    Serial2.begin(57600);
+    Bluetooth::setBluetoothBaud(Serial2, 115200);
 
     I2Cdev::writeByte(ADR, 0x1b, 0x00);
     delay(1);
@@ -93,6 +95,8 @@ void setup() {
     //本语句执行以后50毫秒执行回调函数printout，串口输出
     int tickEvent2=t.every(50, printout);
 
+
+
     portInit();
 }   
 
@@ -101,20 +105,20 @@ void loop() {
     t.update();
 }
 
-int remote_char = 0;
+int walkSpeed = 0;
+int turnSpeed = 0;
+int setPoint  = 0;
 
 void printout()
 {
-    if (Serial2.available() > 0) {
-        remote_char = Serial2.read();
+    if (Serial2.available() >= 3) {
 
-        if(remote_char ==0x02) speed_need = -20;       //前进
-        else if(remote_char ==0x01) speed_need = 20;   //后退
-        else speed_need = 0;                      //不动
+        setPoint  = Serial2.read();
+        walkSpeed = Serial2.read();
+        turnSpeed = Serial2.read();
 
-        if(remote_char ==0x03) turn_need = 15;         //左转
-        else if(remote_char ==0x04) turn_need = -15;   //右转
-        else turn_need = 0;    
+        speed_need = walkSpeed - setPoint;
+        turn_need  = turnSpeed - setPoint;
     }
     Serial2.print("angleAx = ");
     Serial2.print(angleAx);
@@ -124,15 +128,16 @@ void printout()
     Serial2.print(kf.getAngle());
     Serial2.print(',');
 
+    Serial2.print("GYRO = ");
+    Serial2.print(kf.getRate());
+    Serial2.print(',');
+
     Serial2.print("rightSpeed = ");
     Serial2.print(float(sendRSpeed));
     Serial2.print(',');
 
     Serial2.print("leftSpeed = ");
-    Serial2.print(float(sendLSpeed));
-    Serial2.print(',');
-
-    Serial2.print('\r');
+    Serial2.println(float(sendLSpeed));
 
 }
 
@@ -156,7 +161,7 @@ void getangle()
 
     kf.state_update(gyroGy);
     kf.kalman_update(angleAx);
-    Angle = kf.getAngle();
+    Angle = kf.getAngle() - 2.5;
     //Angle = Angle * 0.01745;
     Gyro_y = kf.getRate();
     Psn_Calcu();
@@ -267,8 +272,8 @@ void Psn_Calcu(void)
     speed += speed_r_l*0.3; 
     position += speed;                    //积分得到位移
     position += speed_need;
-    if(position<-30000) position = -30000; 
-    if(position> 30000) position =  30000; 
+    if(position < -10000) position = -10000; 
+    if(position > 10000) position =  10000; 
 }
 
 
@@ -285,10 +290,11 @@ void PWM_Calcu(void)
         stop();
         return;
     }
-    PWM  = Kp*Angle + Kd*Gyro_y;          //PID：角速度和角度
+    PWM  = Kp * Angle + Kd*Gyro_y;          //PID：角速度和角度
     PWM += Kpn*position + Ksp*speed;      //PID：速度和位置
     PWM_R = PWM + turn_need;
     PWM_L = PWM - turn_need;
+
     motion(PWM_R,PWM_L); 
      
 }
