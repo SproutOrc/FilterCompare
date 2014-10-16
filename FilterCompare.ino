@@ -16,8 +16,8 @@
 #define SAMPLE_TIME 10
 #define SPEED 240.0
 #define ANGLE_OFFSET -1.5
-#define OFFSET_RIGHT 0
-#define OFFSET_LEFT 0
+#define OFFSET_RIGHT 20
+#define OFFSET_LEFT 20
 
 uint8_t ADR = 0x68;
 
@@ -55,10 +55,7 @@ char  turn_need = 0;
 char  speed_need = 0;
 
 
-static float Kp  = 45.0;       //PID参数
-static float Kd  = 0.35;        //PID参数
-static float Kpn = 0.09;      //PID参数
-static float Ksp = 1.1;        //PID参数
+
 
 
 //滤波法采样时间间隔毫秒
@@ -77,7 +74,8 @@ void setup() {
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
     Fastwire::setup(400, true);
     #endif
-    Bluetooth::setBluetoothBaud(Serial2, 115200);
+    //Bluetooth::setBluetoothBaud(Serial2, 115200);
+    Serial2.begin(115200);
 
     I2Cdev::writeByte(ADR, 0x1b, 0x00);
     delay(1);
@@ -105,21 +103,27 @@ void loop() {
     t.update();
 }
 
+#define setPoint 1.5
+
 int walkSpeed = 0;
 int turnSpeed = 0;
-int setPoint  = 0;
+int setZero  = 0;
 
 void printout()
 {
     if (Serial2.available() >= 3) {
 
-        setPoint  = Serial2.read();
+        setZero  = Serial2.read();
         walkSpeed = Serial2.read();
         turnSpeed = Serial2.read();
 
-        speed_need = walkSpeed - setPoint;
-        turn_need  = turnSpeed - setPoint;
+        speed_need = walkSpeed - setZero;
+        turn_need  = turnSpeed - setZero;
     }
+    Serial2.print("setPoint = ");
+    Serial2.print(0.0);
+    Serial2.print(',');
+
     Serial2.print("angleAx = ");
     Serial2.print(angleAx);
     Serial2.print(',');
@@ -161,7 +165,7 @@ void getangle()
 
     kf.state_update(gyroGy);
     kf.kalman_update(angleAx);
-    Angle = kf.getAngle() - 2.5;
+    Angle = kf.getAngle();
     //Angle = Angle * 0.01745;
     Gyro_y = kf.getRate();
     Psn_Calcu();
@@ -259,6 +263,7 @@ void stop() {
 }
 
 
+
 void Psn_Calcu(void)     
 {
     speed_r_l =(rightSpeed + leftSpeed)*0.5;
@@ -281,17 +286,21 @@ void Psn_Calcu(void)
 //*********************************************************
 //电机PWM值计算
 //*********************************************************
+static float Kp  = 40.0;       //PID参数
+static float Kd  = 0.48;        //PID参数
+static float Kpn = 0.10;      //PID参数
+static float Ksp = 1.0;        //PID参数
 
 void PWM_Calcu(void)     
 {
     
-    if(Angle<-40||Angle>40)               //角度过大，关闭电机 
+    if(Angle<-40||Angle>40)
     {  
         stop();
         return;
     }
-    PWM  = Kp * Angle + Kd*Gyro_y;          //PID：角速度和角度
-    PWM += Kpn*position + Ksp*speed;      //PID：速度和位置
+    PWM  = Kp * Angle + Kd*Gyro_y;    
+    PWM += Kpn*position + Ksp*speed;      
     PWM_R = PWM + turn_need;
     PWM_L = PWM - turn_need;
 
