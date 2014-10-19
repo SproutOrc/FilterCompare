@@ -1,20 +1,16 @@
 #include "I2Cdev.h"
 #include "KalmanFilter.h"
-//时间操作系统头文件  
-//本程序用作timeChange时间采集并处理一次数据
 #include "Timer.h"
-
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   #include "Wire.h"
-#include "Bluetooth.h"
-
 #endif
+#include "Bluetooth.h"
 
 #define ACCEL 0x3B
 #define GYRO  0x43
 
 #define SAMPLE_TIME 10
-#define SPEED 240.0
+#define SPEED 230.0
 #define ANGLE_OFFSET -1.5
 #define OFFSET_RIGHT 20
 #define OFFSET_LEFT 20
@@ -45,18 +41,6 @@ int   PWM_R;         //右轮PWM值计算
 int   PWM_L;         //左轮PWM值计算
 float PWM;           //综合PWM计算
 
-//******电机参数*************
-
-float speed_r_l;    //电机转速
-float speed = 0;        //电机转速滤波
-float position = 0;     //位移
-
-char  turn_need = 0;
-char  speed_need = 0;
-
-
-
-
 
 //滤波法采样时间间隔毫秒
 float timeChange=SAMPLE_TIME;
@@ -64,6 +48,26 @@ float timeChange=SAMPLE_TIME;
 float angleAx,gyroGy;
 //陀螺仪原始数据 3个加速度+3个角速度
 int16_t ax, ay, az, gx, gy, gz;
+
+void getangle();
+void printout();
+void portInit();
+void stop();
+void AngleSabilityControl(
+            float &angleControl, 
+      const float &angle, 
+      const float &gyro
+);
+void SpeedSabilityControl(
+            float &nowSpeedControl, 
+            float &lastSpeedControl, 
+      const int &setSpeed,
+      const int &leftSpeed,
+      const int &rightSpeed
+);
+void setRightSpeed();
+void setLeftSpeed();
+void motion(int leftPWM, int rightPWM);
 
 
 void setup() {
@@ -93,8 +97,6 @@ void setup() {
     //本语句执行以后50毫秒执行回调函数printout，串口输出
     int tickEvent2=t.every(50, printout);
 
-
-
     portInit();
 }   
 
@@ -103,11 +105,12 @@ void loop() {
     t.update();
 }
 
-#define setPoint 1.5
 
 int walkSpeed = 0;
 int turnSpeed = 0;
 int setZero  = 0;
+int setSpeed = 0;
+int setTurnSpeed = 0;
 
 void printout()
 {
@@ -117,8 +120,8 @@ void printout()
         walkSpeed = Serial2.read();
         turnSpeed = Serial2.read();
 
-        speed_need = walkSpeed - setZero;
-        turn_need  = turnSpeed - setZero;
+        setSpeed = walkSpeed - setZero;
+        setTurnSpeed  = turnSpeed - setZero;
     }
     Serial2.print("setPoint = ");
     Serial2.print(0.0);
@@ -145,7 +148,14 @@ void printout()
 
 }
 
-int flag = 0;
+float angleControl;
+
+
+float nowSpeedControl;
+float lastSpeedControl;
+float speedControl;
+
+float control;
 
 void getangle() 
 {
@@ -159,17 +169,40 @@ void getangle()
     gy = (((int16_t)buffer[2]) << 8) | buffer[2];
     gz = (((int16_t)buffer[4]) << 8) | buffer[5]; 
     // 计算与x轴夹角
-    angleAx = atan2(ax, -az) * 180.0 / PI;
+    angleAx = -(atan2(ax, -az) * 180.0 / PI - 1.5);
     // 计算角速度
-    gyroGy = gy / 131.00;
+    gyroGy = -gy / 131.00;
 
     kf.state_update(gyroGy);
     kf.kalman_update(angleAx);
     Angle = kf.getAngle();
     //Angle = Angle * 0.01745;
     Gyro_y = kf.getRate();
-    Psn_Calcu();
-    PWM_Calcu();
+    if(Angle<-50||Angle>50)
+    {  
+        stop();
+        return;
+    }
+
+    AngleSabilityControl(angleControl, Angle, Gyro_y);
+    SpeedSabilityControl(nowSpeedControl, 
+                         lastSpeedControl, 
+                         setSpeed, 
+                         leftSpeed, 
+                         rightSpeed);
+    sendLSpeed = leftSpeed;
+    sendRSpeed = rightSpeed;
+
+    leftSpeed = 0;
+    rightSpeed = 0;
+
+    control = angleControl;
+    control -= nowSpeedControl;
+
+    PWM_L = control + setTurnSpeed;
+    PWM_R = control - setTurnSpeed;
+
+    motion(PWM_L, PWM_R);
 }
 
 #define MRA 8
@@ -223,7 +256,7 @@ void setLeftSpeed() {
 }
 
 
-void motion(int rightPWM, int leftPWM) {
+void motion(int leftPWM, int rightPWM) {
     if (rightPWM > 0) {
         digitalWrite(MRA, HIGH);
         digitalWrite(MRB, LOW);
@@ -262,48 +295,81 @@ void stop() {
     analogWrite(MLEN, 0);
 }
 
+/**
+ * 角度环控制
+ */
 
+#define ANGLE_OFFSET 0
+#define GYRO_OFFSET 0
+#define ANGLE_P 45
+#define ANGLE_D 0.3
+void AngleSabilityControl(
+            float &angleControl, 
+      const float &angle, 
+      const float &gyro
+) {
+    float value;
 
-void Psn_Calcu(void)     
-{
-    speed_r_l =(rightSpeed + leftSpeed)*0.5;
-    sendRSpeed = rightSpeed;
-    sendLSpeed = leftSpeed;
+    value = (ANGLE_OFFSET - angle) * ANGLE_P +
+            (GYRO_OFFSET - gyro) *  ANGLE_D;
 
-    leftSpeed = 0;
-    rightSpeed = 0;
-
-    speed *= 0.7;                         //车轮速度滤波
-    speed += speed_r_l*0.3; 
-    position += speed;                    //积分得到位移
-    position += speed_need;
-    if(position < -10000) position = -10000; 
-    if(position > 10000) position =  10000; 
+    angleControl = value;
 }
 
+/**
+ * 速度环控制
+ */
 
+#define SPEED_CONSTANT 1
+#define SPEED_P 0.07
+#define SPEED_D 1.1
 
-//*********************************************************
-//电机PWM值计算
-//*********************************************************
-static float Kp  = 40.0;       //PID参数
-static float Kd  = 0.48;        //PID参数
-static float Kpn = 0.10;      //PID参数
-static float Ksp = 1.0;        //PID参数
+void SpeedSabilityControl(
+            float &nowSpeedControl, 
+            float &lastSpeedControl, 
+      const int &setSpeed,
+      const int &leftSpeed,
+      const int &rightSpeed
+) {
+    float error;
+    float pValue, dValue;
+    static float position = 0;
+    static float sablilitySpeed = 0;
 
-void PWM_Calcu(void)     
-{
-    
-    if(Angle<-40||Angle>40)
-    {  
-        stop();
-        return;
-    }
-    PWM  = Kp * Angle + Kd*Gyro_y;    
-    PWM += Kpn*position + Ksp*speed;      
-    PWM_R = PWM + turn_need;
-    PWM_L = PWM - turn_need;
+    float realSpeed = (leftSpeed + rightSpeed) / 2.0;
+    realSpeed *= SPEED_CONSTANT;
 
-    motion(PWM_R,PWM_L); 
-     
+    sablilitySpeed *= 0.85;
+    sablilitySpeed += realSpeed * 0.15;
+
+    error = setSpeed - sablilitySpeed;
+    pValue = error * SPEED_P;
+    dValue = error * SPEED_D;
+
+    position += pValue;
+
+    lastSpeedControl = nowSpeedControl;
+    nowSpeedControl  = dValue + position;
 }
+
+/**
+ * 速度平滑控制
+ */
+#define SPEED_SCALE_MAX 10
+
+void SpeedSmoothControl(
+            float &speedControl,
+      const float &nowSpeedControl,
+      const float &lastSpeedControl 
+) {
+    static int count = 1;
+    float value;
+
+    value = nowSpeedControl - lastSpeedControl;
+
+    value = value * count / SPEED_SCALE_MAX + lastSpeedControl;
+    count ++;
+    if (count == SPEED_SCALE_MAX + 1) count = 1;
+    speedControl = value;
+}
+
