@@ -301,8 +301,8 @@ void stop() {
 
 #define ANGLE_OFFSET 0
 #define GYRO_OFFSET 0
-#define ANGLE_P 45
-#define ANGLE_D 0.3
+#define ANGLE_P 54
+#define ANGLE_D 0.42
 void AngleSabilityControl(
             float &angleControl, 
       const float &angle, 
@@ -321,8 +321,8 @@ void AngleSabilityControl(
  */
 
 #define SPEED_CONSTANT 1
-#define SPEED_P 0.07
-#define SPEED_D 1.1
+#define SPEED_P 0.12
+#define SPEED_D 2.0
 
 void SpeedSabilityControl(
             float &nowSpeedControl, 
