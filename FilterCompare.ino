@@ -10,10 +10,6 @@
 #define GYRO  0x43
 
 #define SAMPLE_TIME 10
-#define SPEED 230.0
-#define ANGLE_OFFSET -1.5
-#define OFFSET_RIGHT 20.85
-#define OFFSET_LEFT 20.85
 
 uint8_t ADR = 0x68;
 
@@ -279,7 +275,9 @@ void setLeftSpeed() {
     }
 }
 
-
+#define SPEED 230.0
+#define OFFSET_RIGHT 0
+#define OFFSET_LEFT 0
 void motion(int leftPWM, int rightPWM) {
     if (rightPWM > 0) {
         digitalWrite(MRA, HIGH);
@@ -325,8 +323,8 @@ void stop() {
 
 #define ANGLE_OFFSET 0
 #define GYRO_OFFSET 0
-#define ANGLE_P 52.00
-#define ANGLE_D 0.35
+#define ANGLE_P 55.60
+#define ANGLE_D 0.52
 void AngleSabilityControl(
         float &angleControl, 
   const float &angle, 
@@ -345,8 +343,8 @@ void AngleSabilityControl(
  */
 
 #define SPEED_CONSTANT 1
-#define SPEED_P 0.10
-#define SPEED_D 1.00 
+#define SPEED_P 0.11
+#define SPEED_D 2.05
 
 void SpeedSabilityControl(
         float &nowSpeedControl, 
@@ -371,10 +369,10 @@ void SpeedSabilityControl(
     float realSpeed = (leftSpeed + rightSpeed) / 2.0;
     realSpeed *= SPEED_CONSTANT;
 
-    sabilitySpeed *= 0.7;
-    sabilitySpeed += realSpeed * 0.3;
+    sabilitySpeed *= 0.85;
+    sabilitySpeed += realSpeed * 0.15;
 
-    sabilitySetSpeed = sabilitySetSpeed * 0.85 + setSpeed * 0.15;
+    sabilitySetSpeed = sabilitySetSpeed * 0.95 + setSpeed * 0.05;
 
     error = sabilitySetSpeed - sabilitySpeed;
     pValue = error * SPEED_P;
@@ -383,6 +381,8 @@ void SpeedSabilityControl(
     position += pValue;
 
     lastSpeedControl = nowSpeedControl;
+    if (nowSpeedControl > 100) nowSpeedControl = 100;
+    else if (nowSpeedControl < -100) nowSpeedControl = -100;
     nowSpeedControl  = dValue + position;
 }
 
@@ -407,8 +407,8 @@ void SpeedSmoothControl(
     speedControl = value;
 }
 
-#define TURN_P 0.02
-#define TURN_D 0.35
+#define TURN_P 0.01
+#define TURN_D 0.02
 void turnSabilityControl(
         float &turnSpeedControl,
   const int &setTurnSpeed,
