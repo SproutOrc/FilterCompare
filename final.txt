@@ -5,6 +5,7 @@
   #include "Wire.h"
 #endif
 #include "Bluetooth.h"
+#include "stdlib.h"
 
 #define ACCEL 0x3B
 #define GYRO  0x43
@@ -17,32 +18,32 @@ uint8_t buffer[6];
 
 KalmanFilter kf(SAMPLE_TIME * 0.001);
 
-//æ—¶é—´ç±»
+//Ê±¼äÀà
 Timer t;
 
 
-//******è§’åº¦å‚æ•°************
+//******½Ç¶È²ÎÊı************
 
-float Gyro_y;        //Yè½´é™€èºä»ªæ•°æ®æš‚å­˜
-float Angle;         //å°è½¦æœ€ç»ˆå€¾æ–œè§’åº¦
+float Gyro_y;        //YÖáÍÓÂİÒÇÊı¾İÔİ´æ
+float Angle;         //Ğ¡³µ×îÖÕÇãĞ±½Ç¶È
 
-//******PWMå‚æ•°*************
+//******PWM²ÎÊı*************
 
-int   rightSpeed = 0;      //å³ç”µæœºè½¬é€Ÿ
-int   leftSpeed = 0;      //å·¦ç”µæœºè½¬é€Ÿ
+int   rightSpeed = 0;      //ÓÒµç»ú×ªËÙ
+int   leftSpeed = 0;      //×óµç»ú×ªËÙ
 
 int   sendRSpeed = 0;
 int   sendLSpeed = 0;
-int   PWM_R;         //å³è½®PWMå€¼è®¡ç®—
-int   PWM_L;         //å·¦è½®PWMå€¼è®¡ç®—
-float PWM;           //ç»¼åˆPWMè®¡ç®—
+int   PWM_R;         //ÓÒÂÖPWMÖµ¼ÆËã
+int   PWM_L;         //×óÂÖPWMÖµ¼ÆËã
+float PWM;           //×ÛºÏPWM¼ÆËã
 
 
-//æ»¤æ³¢æ³•é‡‡æ ·æ—¶é—´é—´éš”æ¯«ç§’
+//ÂË²¨·¨²ÉÑùÊ±¼ä¼ä¸ôºÁÃë
 float timeChange=SAMPLE_TIME;
-// //è®¡ç®—åçš„è§’åº¦ï¼ˆä¸xè½´å¤¹è§’ï¼‰å’Œè§’é€Ÿåº¦
+// //¼ÆËãºóµÄ½Ç¶È£¨ÓëxÖá¼Ğ½Ç£©ºÍ½ÇËÙ¶È
 float angleAx,gyroGy;
-//é™€èºä»ªåŸå§‹æ•°æ® 3ä¸ªåŠ é€Ÿåº¦+3ä¸ªè§’é€Ÿåº¦
+//ÍÓÂİÒÇÔ­Ê¼Êı¾İ 3¸ö¼ÓËÙ¶È+3¸ö½ÇËÙ¶È
 int16_t ax, ay, az, gx, gy, gz;
 
 void getangle();
@@ -55,12 +56,12 @@ void AngleSabilityControl(
       const float &gyro
 );
 void SpeedSabilityControl(
-        float &nowSpeedControl, 
-        float &lastSpeedControl, 
-  const int &setSpeed,
-  const int &leftSpeed,
-  const int &rightSpeed,
-  const bool &clearAll
+            float &nowSpeedControl, 
+            float &lastSpeedControl, 
+      const int &setSpeed,
+      const int &leftSpeed,
+      const int &rightSpeed,
+      const bool &clearAll
 );
 void turnSabilityControl(
         float &turnSpeedControl,
@@ -84,6 +85,7 @@ void setup() {
     #endif
     //Bluetooth::setBluetoothBaud(Serial2, 115200);
     Serial2.begin(115200);
+    Serial2.setTimeout(50); 
 
     I2Cdev::writeByte(ADR, 0x1b, 0x00);
     delay(1);
@@ -96,18 +98,62 @@ void setup() {
 
     I2Cdev::writeByte(ADR, 0x37, 0x02);
 
-    //æœ¬è¯­å¥æ‰§è¡Œä»¥åtimeChangeæ¯«ç§’æ‰§è¡Œå›è°ƒå‡½æ•°getangle
+    //±¾Óï¾äÖ´ĞĞÒÔºótimeChangeºÁÃëÖ´ĞĞ»Øµ÷º¯Êıgetangle
     int tickEvent1=t.every(timeChange, getangle);
-    //æœ¬è¯­å¥æ‰§è¡Œä»¥å50æ¯«ç§’æ‰§è¡Œå›è°ƒå‡½æ•°printoutï¼Œä¸²å£è¾“å‡º
+    //±¾Óï¾äÖ´ĞĞÒÔºó50ºÁÃëÖ´ĞĞ»Øµ÷º¯Êıprintout£¬´®¿ÚÊä³ö
     int tickEvent2=t.every(50, printout);
 
     portInit();
 }   
 
 void loop() {
-    //æ—¶é—´æ“ä½œç³»ç»Ÿè¿è¡Œ
+    //Ê±¼ä²Ù×÷ÏµÍ³ÔËĞĞ
     t.update();
 }
+
+#define RECEIVE_LENGTH 20
+typedef struct {
+    String key;
+    float value;
+}DictFloat;
+
+bool stringToFloat(
+    DictFloat &dict,
+    const char *const buff
+) {
+    char value;
+    unsigned char i;
+    unsigned char buffIndex = 0;
+    unsigned char stringIndex = 0;
+    char string[RECEIVE_LENGTH];
+    
+    for (i = 0; i < RECEIVE_LENGTH; ++i) {
+        value = *(buff + buffIndex);
+        buffIndex++;
+        if (value == '\0') {
+            *(string + stringIndex) = '\0';
+            break;
+        } else if (value == '=') {
+            *(string + stringIndex) = '\0';
+            break;
+        } else if (value== ' ') {
+            continue;
+        } else {
+            *(string + stringIndex) = value;
+            stringIndex++;
+        }
+    }
+    
+    if (i == RECEIVE_LENGTH) {
+        return false;
+    }
+    
+    dict.key = string;
+    dict.value = atof(buff + buffIndex);
+    
+    return true;
+}
+
 
 
 int walkSpeed = 0;
@@ -115,53 +161,85 @@ int turnSpeed = 0;
 int setZero  = 0;
 int setSpeed = 0;
 int setTurnSpeed = 0;
+char receiveArray[20];
+DictFloat dict;
+
+float angleKp = 0;
+float angleKd = 0;
+
+float speedKp = 0;
+float speedKd = 0;
+
+float turnKp = 0;
+float turnKd = 0;
+
+float offset = 0;
+
+char ddd = '\0';
 
 void printout()
 {
-    if (Serial2.available() >= 3) {
+    // if (Serial2.available() >= 3) {
 
-        setZero  = Serial2.read();
-        walkSpeed = Serial2.read();
-        turnSpeed = Serial2.read();
+    //     setZero  = Serial2.read();
+    //     walkSpeed = Serial2.read();
+    //     turnSpeed = Serial2.read();
 
-        setSpeed = walkSpeed - setZero;
-        setTurnSpeed  = turnSpeed - setZero;
+    //     setSpeed = walkSpeed - setZero;
+    //     setTurnSpeed  = turnSpeed - setZero;
+    // }
+    if (Serial2.available() > 0) {
+        Serial2.flush();
+        Serial2.readBytes(receiveArray, Serial2.available());
+        while(Serial.read() >= 0);
+        stringToFloat(dict, receiveArray);
+        if (dict.key.equals("angleKp")) {
+            angleKp = dict.value;
+        } else if (dict.key.equals("angleKd")) {
+            angleKd = dict.value;
+        } else if (dict.key.equals("speedKp")) {
+            speedKp = dict.value;
+        } else if (dict.key.equals("speedKd")) {
+            speedKd = dict.value;
+        } else if (dict.key.equals("turnKp")) {
+            turnKp = dict.value;
+        } else if (dict.key.equals("turnKd")) {
+            turnKd = dict.value;
+        } else if (dict.key.equals("offset")) {
+            offset = dict.value;
+        }
     }
-    Serial2.print("setPoint = ");
-    Serial2.print(0.0);
-    Serial2.print(',');
+    // Serial2.print("setPoint = ");
+    // Serial2.print(0.0);
+    // Serial2.print(',');
 
-    Serial2.print("angleAx = ");
-    Serial2.print(angleAx);
-    Serial2.print(',');
+    // Serial2.print("angleAx = ");
+    // Serial2.print(angleAx);
+    // Serial2.print(',');
 
-    Serial2.print("kfAngle = ");
-    Serial2.print(kf.getAngle());
-    Serial2.print(',');
+    // Serial2.print("kfAngle = ");
+    // Serial2.print(kf.getAngle());
+    // Serial2.print(',');
 
-    Serial2.print("GYRO = ");
-    Serial2.print(kf.getRate());
-    Serial2.print(',');
+    // Serial2.print("GYRO = ");
+    // Serial2.print(kf.getRate());
+    // Serial2.print(',');
 
-    Serial2.print("rightSpeed = ");
-    Serial2.print(float(sendRSpeed));
-    Serial2.print(',');
+    // Serial2.print("rightSpeed = ");
+    // Serial2.print(float(sendRSpeed));
+    // Serial2.print(',');
 
-    Serial2.print("leftSpeed = ");
-    Serial2.println(float(sendLSpeed));
+    // Serial2.print("leftSpeed = ");
+    // Serial2.println(float(sendLSpeed));
 
 }
 
 float angleControl;
-
-
 float nowSpeedControl;
 float lastSpeedControl;
 float speedControl;
 float turnSpeedControl;
-
 float control;
-
 bool clearAll = false;
 
 void getangle() 
@@ -175,15 +253,15 @@ void getangle()
     gx = (((int16_t)buffer[0]) << 8) | buffer[1];
     gy = (((int16_t)buffer[2]) << 8) | buffer[2];
     gz = (((int16_t)buffer[4]) << 8) | buffer[5]; 
-    // è®¡ç®—ä¸xè½´å¤¹è§’
+    // ¼ÆËãÓëxÖá¼Ğ½Ç
     angleAx = -(atan2(ax, -az) * 180.0 / PI - 1.5);
-    // è®¡ç®—è§’é€Ÿåº¦
+    // ¼ÆËã½ÇËÙ¶È
     gyroGy = -gy / 131.00;
 
     kf.state_update(gyroGy);
     kf.kalman_update(angleAx);
     Angle = kf.getAngle();
-    //Angle = Angle * 0.01745;
+    // Angle = Angle * 0.01745;
     Gyro_y = kf.getRate();
     if(Angle<-50||Angle>50)
     {  
@@ -206,6 +284,7 @@ void getangle()
 
     leftSpeed = 0;
     rightSpeed = 0;
+
     turnSabilityControl(
         turnSpeedControl,
         setTurnSpeed,
@@ -213,7 +292,6 @@ void getangle()
         sendRSpeed,
         clearAll
     );
-    
 
     control = angleControl;
     control -= nowSpeedControl;
@@ -278,6 +356,7 @@ void setLeftSpeed() {
 #define SPEED 230.0
 #define OFFSET_RIGHT 0
 #define OFFSET_LEFT 0
+
 void motion(int leftPWM, int rightPWM) {
     if (rightPWM > 0) {
         digitalWrite(MRA, HIGH);
@@ -298,8 +377,8 @@ void motion(int leftPWM, int rightPWM) {
         leftPWM = -leftPWM;
     }
 
-    rightPWM += OFFSET_RIGHT;
-    leftPWM  += OFFSET_LEFT;
+    rightPWM += OFFSET_RIGHT + offset;
+    leftPWM  += OFFSET_LEFT + offset;
 
     if (rightPWM > SPEED) {
         rightPWM = SPEED;
@@ -318,13 +397,13 @@ void stop() {
 }
 
 /**
- * è§’åº¦ç¯æ§åˆ¶
+ * ½Ç¶È»·¿ØÖÆ
  */
 
 #define ANGLE_OFFSET 0
 #define GYRO_OFFSET 0
-#define ANGLE_P 55.60
-#define ANGLE_D 0.52
+#define ANGLE_P 1
+#define ANGLE_D 1
 void AngleSabilityControl(
         float &angleControl, 
   const float &angle, 
@@ -332,19 +411,19 @@ void AngleSabilityControl(
 ) {
     float value;
 
-    value = (ANGLE_OFFSET - angle) * ANGLE_P +
-            (GYRO_OFFSET - gyro) *  ANGLE_D;
+    value = (ANGLE_OFFSET - angle) * ANGLE_P * angleKp +
+            (GYRO_OFFSET - gyro) *  ANGLE_D * angleKd;
 
     angleControl = value;
 }
 
 /**
- * é€Ÿåº¦ç¯æ§åˆ¶
+ * ËÙ¶È»·¿ØÖÆ
  */
 
 #define SPEED_CONSTANT 1
-#define SPEED_P 0.11
-#define SPEED_D 2.05
+#define SPEED_P 1
+#define SPEED_D 1
 
 void SpeedSabilityControl(
         float &nowSpeedControl, 
@@ -354,18 +433,19 @@ void SpeedSabilityControl(
   const int &rightSpeed,
   const bool &clearAll
 ) {
-    static float position = 0;
-    static float sabilitySpeed = 0;
+    static float position = 0.0;
+    static float sabilitySpeed = 0.0;
     static int sabilitySetSpeed = 0;
+
     float error;
-    float pValue, dValue; 
+    float pValue, dValue;
 
     if (clearAll) {
-        position = 0;
-        sabilitySpeed = 0;
+        position = 0.0;
+        sabilitySpeed = 0.0;
         sabilitySetSpeed = 0;
     }
-   
+
     float realSpeed = (leftSpeed + rightSpeed) / 2.0;
     realSpeed *= SPEED_CONSTANT;
 
@@ -375,8 +455,8 @@ void SpeedSabilityControl(
     sabilitySetSpeed = sabilitySetSpeed * 0.95 + setSpeed * 0.05;
 
     error = sabilitySetSpeed - sabilitySpeed;
-    pValue = error * SPEED_P;
-    dValue = error * SPEED_D;
+    pValue = error * SPEED_P * speedKp;
+    dValue = error * SPEED_D * speedKd;
 
     position += pValue;
 
@@ -385,14 +465,14 @@ void SpeedSabilityControl(
 }
 
 /**
- * é€Ÿåº¦å¹³æ»‘æ§åˆ¶
+ * ËÙ¶ÈÆ½»¬¿ØÖÆ
  */
 #define SPEED_SCALE_MAX 10
 
 void SpeedSmoothControl(
         float &speedControl,
   const float &nowSpeedControl,
-  const float &lastSpeedControl
+  const float &lastSpeedControl 
 ) {
     static int count = 1;
     float value;
@@ -405,38 +485,41 @@ void SpeedSmoothControl(
     speedControl = value;
 }
 
-#define TURN_P 0.01
-#define TURN_D 0.02
+/**
+ * ×ªÏò¿ØÖÆ
+ */
+#define TURN_P 1
+#define TURN_D 1
 void turnSabilityControl(
         float &turnSpeedControl,
   const int &setTurnSpeed,
   const int &leftSpeed,
   const int &rightSpeed,
-  const bool &clearAll 
+  const bool &clearAll
 ) {
-    static float sabilitySetTurnSpeed = 0;
-    static float sabilityTurnSpeed = 0;
-    static float offsetPosition = 0;
-
-    float errorSpeed;
+    int errorSpeed;
     float error;
     float pValue, dValue;
 
+    static float sabilitySetTurnSpeed = 0.0;
+    static float sabilityTurnSpeed = 0.0;
+    static float offsetPosition = 0.0;
+
     if (clearAll) {
-        sabilitySetTurnSpeed = 0;
-        sabilityTurnSpeed = 0;
-        offsetPosition = 0;
+        offsetPosition = 0.0;
+        sabilitySetTurnSpeed = 0.0;
+        sabilityTurnSpeed = 0.0;
     }
 
     errorSpeed = leftSpeed - rightSpeed;
 
     sabilityTurnSpeed = sabilityTurnSpeed * 0.85 + errorSpeed * 0.15;
-    sabilitySetTurnSpeed = sabilitySetTurnSpeed * 0.85 + setTurnSpeed * 0.15;
+    sabilitySetTurnSpeed = sabilitySetTurnSpeed * 0.95 + setTurnSpeed * 0.05;
     
     error = sabilitySetTurnSpeed - sabilityTurnSpeed;
 
-    pValue = error * TURN_P;
-    dValue = error * TURN_D;
+    pValue = error * TURN_P * turnKp;
+    dValue = error * TURN_D * turnKd;
 
     offsetPosition += pValue;
 

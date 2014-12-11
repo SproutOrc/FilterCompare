@@ -17,32 +17,32 @@ uint8_t buffer[6];
 
 KalmanFilter kf(SAMPLE_TIME * 0.001);
 
-//æ—¶é—´ç±»
+//Ê±¼äÀà
 Timer t;
 
 
-//******è§’åº¦å‚æ•°************
+//******½Ç¶È²ÎÊı************
 
-float Gyro_y;        //Yè½´é™€èºä»ªæ•°æ®æš‚å­˜
-float Angle;         //å°è½¦æœ€ç»ˆå€¾æ–œè§’åº¦
+float Gyro_y;        //YÖáÍÓÂİÒÇÊı¾İÔİ´æ
+float Angle;         //Ğ¡³µ×îÖÕÇãĞ±½Ç¶È
 
-//******PWMå‚æ•°*************
+//******PWM²ÎÊı*************
 
-int   rightSpeed = 0;      //å³ç”µæœºè½¬é€Ÿ
-int   leftSpeed = 0;      //å·¦ç”µæœºè½¬é€Ÿ
+int   rightSpeed = 0;      //ÓÒµç»ú×ªËÙ
+int   leftSpeed = 0;      //×óµç»ú×ªËÙ
 
 int   sendRSpeed = 0;
 int   sendLSpeed = 0;
-int   PWM_R;         //å³è½®PWMå€¼è®¡ç®—
-int   PWM_L;         //å·¦è½®PWMå€¼è®¡ç®—
-float PWM;           //ç»¼åˆPWMè®¡ç®—
+int   PWM_R;         //ÓÒÂÖPWMÖµ¼ÆËã
+int   PWM_L;         //×óÂÖPWMÖµ¼ÆËã
+float PWM;           //×ÛºÏPWM¼ÆËã
 
 
-//æ»¤æ³¢æ³•é‡‡æ ·æ—¶é—´é—´éš”æ¯«ç§’
+//ÂË²¨·¨²ÉÑùÊ±¼ä¼ä¸ôºÁÃë
 float timeChange=SAMPLE_TIME;
-// //è®¡ç®—åçš„è§’åº¦ï¼ˆä¸xè½´å¤¹è§’ï¼‰å’Œè§’é€Ÿåº¦
+// //¼ÆËãºóµÄ½Ç¶È£¨ÓëxÖá¼Ğ½Ç£©ºÍ½ÇËÙ¶È
 float angleAx,gyroGy;
-//é™€èºä»ªåŸå§‹æ•°æ® 3ä¸ªåŠ é€Ÿåº¦+3ä¸ªè§’é€Ÿåº¦
+//ÍÓÂİÒÇÔ­Ê¼Êı¾İ 3¸ö¼ÓËÙ¶È+3¸ö½ÇËÙ¶È
 int16_t ax, ay, az, gx, gy, gz;
 
 void getangle();
@@ -96,16 +96,16 @@ void setup() {
 
     I2Cdev::writeByte(ADR, 0x37, 0x02);
 
-    //æœ¬è¯­å¥æ‰§è¡Œä»¥åtimeChangeæ¯«ç§’æ‰§è¡Œå›è°ƒå‡½æ•°getangle
+    //±¾Óï¾äÖ´ĞĞÒÔºótimeChangeºÁÃëÖ´ĞĞ»Øµ÷º¯Êıgetangle
     int tickEvent1=t.every(timeChange, getangle);
-    //æœ¬è¯­å¥æ‰§è¡Œä»¥å50æ¯«ç§’æ‰§è¡Œå›è°ƒå‡½æ•°printoutï¼Œä¸²å£è¾“å‡º
+    //±¾Óï¾äÖ´ĞĞÒÔºó50ºÁÃëÖ´ĞĞ»Øµ÷º¯Êıprintout£¬´®¿ÚÊä³ö
     int tickEvent2=t.every(50, printout);
 
     portInit();
 }   
 
 void loop() {
-    //æ—¶é—´æ“ä½œç³»ç»Ÿè¿è¡Œ
+    //Ê±¼ä²Ù×÷ÏµÍ³ÔËĞĞ
     t.update();
 }
 
@@ -175,9 +175,9 @@ void getangle()
     gx = (((int16_t)buffer[0]) << 8) | buffer[1];
     gy = (((int16_t)buffer[2]) << 8) | buffer[2];
     gz = (((int16_t)buffer[4]) << 8) | buffer[5]; 
-    // è®¡ç®—ä¸xè½´å¤¹è§’
+    // ¼ÆËãÓëxÖá¼Ğ½Ç
     angleAx = -(atan2(ax, -az) * 180.0 / PI - 1.5);
-    // è®¡ç®—è§’é€Ÿåº¦
+    // ¼ÆËã½ÇËÙ¶È
     gyroGy = -gy / 131.00;
 
     kf.state_update(gyroGy);
@@ -318,7 +318,7 @@ void stop() {
 }
 
 /**
- * è§’åº¦ç¯æ§åˆ¶
+ * ½Ç¶È»·¿ØÖÆ
  */
 
 #define ANGLE_OFFSET 0
@@ -339,7 +339,7 @@ void AngleSabilityControl(
 }
 
 /**
- * é€Ÿåº¦ç¯æ§åˆ¶
+ * ËÙ¶È»·¿ØÖÆ
  */
 
 #define SPEED_CONSTANT 1
@@ -358,7 +358,7 @@ void SpeedSabilityControl(
     static float sabilitySpeed = 0;
     static int sabilitySetSpeed = 0;
     float error;
-    float pValue, dValue; 
+    float pValue, dValue;
 
     if (clearAll) {
         position = 0;
@@ -381,11 +381,13 @@ void SpeedSabilityControl(
     position += pValue;
 
     lastSpeedControl = nowSpeedControl;
+    if (nowSpeedControl > 100) nowSpeedControl = 100;
+    else if (nowSpeedControl < -100) nowSpeedControl = -100;
     nowSpeedControl  = dValue + position;
 }
 
 /**
- * é€Ÿåº¦å¹³æ»‘æ§åˆ¶
+ * ËÙ¶ÈÆ½»¬¿ØÖÆ
  */
 #define SPEED_SCALE_MAX 10
 
