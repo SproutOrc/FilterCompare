@@ -154,7 +154,6 @@ void printout()
 
 float angleControl;
 
-
 float nowSpeedControl;
 float lastSpeedControl;
 float speedControl;
@@ -320,16 +319,35 @@ void stop() {
 /**
  * 角度环控制
  */
-
+// 角度偏移值
 #define ANGLE_OFFSET 0
+// 角速度偏移值
 #define GYRO_OFFSET 0
+// 角度环比例系数（P）大小
 #define ANGLE_P 55.60
+// 角度环积分系数（D）大小
 #define ANGLE_D 0.52
+/**
+ * 角度环控制主函数
+ * 输出
+ * angleControl 
+ * （&意思是取引用，如果你对C++不了解的话）
+
+ * 输入
+ * angle -> 角度值
+ * guro  -> 角速度 
+ */
+
 void AngleSabilityControl(
         float &angleControl, 
   const float &angle, 
   const float &gyro
 ) {
+    /**
+     * 这里这个变量别省，涉及到参数的完整性问题
+     * 详细看 http://www.geek-workshop.com/thread-11336-1-1.html
+     */
+    
     float value;
 
     value = (ANGLE_OFFSET - angle) * ANGLE_P +

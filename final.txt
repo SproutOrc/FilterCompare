@@ -110,36 +110,50 @@ void loop() {
     //时间操作系统运行
     t.update();
 }
-
+// 接收的总的字符长度
 #define RECEIVE_LENGTH 20
+
+// 接收到的数据通过这个结构体类型输出
 typedef struct {
     String key;
     float value;
 }DictFloat;
 
+// 字符转换成浮点数字典类型
 bool stringToFloat(
+     // 输出字典类型
     DictFloat &dict,
+     // 输入字符串
+     // 结构 ax = 0.0 是字符串当然要加上\0
     const char *const buff
 ) {
-    char value;
+    // 临时存储用的
+    char charAtIndex;
+    // 索引
     unsigned char i;
+    // 输入字符串索引
     unsigned char buffIndex = 0;
+    // 输出字符串索引
     unsigned char stringIndex = 0;
+    // 存储输出的字符串
     char string[RECEIVE_LENGTH];
     
+
     for (i = 0; i < RECEIVE_LENGTH; ++i) {
-        value = *(buff + buffIndex);
-        buffIndex++;
-        if (value == '\0') {
+        // 提取索引位置的字符
+        charAtIndex = *(buff + buffIndex);
+        buffIndex ++;
+        // 如果到字符串末尾直接结束
+        if (charAtIndex == '\0') {
             *(string + stringIndex) = '\0';
             break;
-        } else if (value == '=') {
+        } else if (charAtIndex == '=') {
             *(string + stringIndex) = '\0';
             break;
-        } else if (value== ' ') {
+        } else if (charAtIndex== ' ') {
             continue;
         } else {
-            *(string + stringIndex) = value;
+            *(string + stringIndex) = charAtIndex;
             stringIndex++;
         }
     }
@@ -149,12 +163,13 @@ bool stringToFloat(
     }
     
     dict.key = string;
+    // 将字符串数据转换成浮点数
+    // buff是字符串指针
+    // 所以buff+buffIndex就是等于号后面的数据的字符串
     dict.value = atof(buff + buffIndex);
     
     return true;
 }
-
-
 
 int walkSpeed = 0;
 int turnSpeed = 0;
